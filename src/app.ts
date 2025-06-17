@@ -1,5 +1,5 @@
 import { Server } from "./presentation/server";
-import { envs } from "../src/config/envs";
+import { envs } from "./config/envs";
 
 (() => {
   main();
