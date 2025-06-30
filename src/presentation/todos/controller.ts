@@ -1,6 +1,6 @@
 import { Response, Request } from "express";
 import { prisma } from "../../data/postgres/init";
-import { CreateTodoDto } from "../../domain/dtos/todos";
+import { CreateTodoDto, UpdateTodoDto } from "../../domain/dtos/todos";
 
 const arrTasks = [
   { id: 1, task: "Tu vieja", createdAt: new Date() },
@@ -110,23 +110,38 @@ export class TodoController {
   }
 
   public async updateDbTask(req: Request, res: Response) {
-    const { task } = req.body;
     const taskId = +req.params.taskId;
 
-    if (typeof task !== "string" || task.trim().length < 1) {
-      throw new Error("Task is required");
-    }
+    console.log(req.body);
+
+    const [error, updatedTodoDto] = UpdateTodoDto.create({
+      ...req.body,
+      id: taskId,
+    });
+
+    if (error) return res.status(400).json({ error });
+
     try {
+      const todo = await prisma.todo.findUnique({ where: { id: taskId } });
+      if (!todo)
+        return res
+          .status(400)
+          .json({ error: `TODO with id ${taskId} doesn't exist` });
+
       const taskUpdated = await prisma.todo.update({
         where: { id: taskId },
-        data: { text: task },
+        data: {
+          text: updatedTodoDto?.values.text,
+          completedAt: updatedTodoDto?.values.completedAt,
+        },
       });
       res.status(200).json({
         message: "task was updated",
-        beforeTask: task,
         updatedTask: taskUpdated,
       });
-    } catch (error) {}
+    } catch (error) {
+      res.status(400).json({ error });
+    }
   }
 
   public deleteTask(req: Request, res: Response) {
