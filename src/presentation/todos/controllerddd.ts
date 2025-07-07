@@ -1,13 +1,9 @@
 import { Response, Request } from "express";
+import { prisma } from "../../data/postgres/init";
 import {
   CreateTodoDto,
-  CreateTodo,
-  GetAllTodo,
   TodoRepository,
   UpdateTodoDto,
-  GetTodo,
-  UpdateTodo,
-  DeleteTodo,
 } from "../../domain/index";
 
 const arrTasks = [
@@ -24,10 +20,12 @@ export class TodoController {
   }
 
   public async getDbTodos(req: Request, res: Response) {
-    new GetAllTodo(this.todoRepository)
-      .execute()
-      .then((todos) => res.json(todos))
-      .catch((err) => res.status(400).json({ err }));
+    try {
+      const todos = await this.todoRepository.getAll();
+      return res.status(200).json({ todos });
+    } catch (error) {
+      return res.status(400).json({ message: `Todo list doesn't exist` });
+    }
   }
 
   public getTodoById(req: Request, res: Response) {
@@ -45,10 +43,16 @@ export class TodoController {
 
   public async getDbTodoById(req: Request, res: Response) {
     const taskId = +req.params.taskId;
-    new GetTodo(this.todoRepository)
-      .execute(taskId)
-      .then((todo) => res.json(todo))
-      .catch((err) => res.status(400).json(err));
+
+    try {
+      const todo = await this.todoRepository.findById(taskId);
+
+      return res.status(200).json({ todo });
+    } catch (error) {
+      return res
+        .status(400)
+        .json({ message: `Todo with id: ${taskId} doesn't exist` });
+    }
   }
 
   public createTask(req: Request, res: Response) {
@@ -74,14 +78,16 @@ export class TodoController {
     });
   }
 
-  public createDbTask(req: Request, res: Response) {
+  public async createDbTask(req: Request, res: Response) {
     const [error, createTodoDto] = CreateTodoDto.create(req.body);
     if (error) return res.status(404).json({ error });
 
-    new CreateTodo(this.todoRepository)
-      .execute(createTodoDto!)
-      .then((todos) => res.json(todos))
-      .catch((error) => res.status(400).json({ error }));
+    try {
+      const todoCreated = await this.todoRepository.create(createTodoDto!);
+      return res.status(200).json({ todoCreated });
+    } catch (error) {
+      return res.status(400).json({ message: `Error to create a new Todo` });
+    }
   }
 
   public updateTask(req: Request, res: Response) {
@@ -118,12 +124,18 @@ export class TodoController {
       id: taskId,
     });
 
-    if (error) return res.status(404).json({ error });
+    if (error) return res.status(400).json({ error });
 
-    new UpdateTodo(this.todoRepository)
-      .execute(updatedTodoDto!)
-      .then((todo) => res.json(todo))
-      .catch((err) => res.status(400).json({ err }));
+    try {
+      const taskUpdated = await this.todoRepository.updateById(updatedTodoDto!);
+
+      res.status(200).json({
+        message: "task was updated",
+        updatedTask: taskUpdated,
+      });
+    } catch (error) {
+      return res.status(400).json({ error });
+    }
   }
 
   public deleteTask(req: Request, res: Response) {
@@ -139,9 +151,16 @@ export class TodoController {
   public async deleteDbTask(req: Request, res: Response) {
     const id = +req.params.taskId;
 
-    new DeleteTodo(this.todoRepository)
-      .execute(id)
-      .then((todo) => res.json(todo))
-      .catch((err) => res.status(400).json({ err }));
+    if (typeof id !== "number" || id < 0) {
+      throw new Error("'ID' must exist and be a positive number");
+    }
+
+    try {
+      const deletedTodo = await this.todoRepository.deleteById(id);
+      return res.status(200).json({ message: "Task was deleted", deletedTodo });
+    } catch (error) {
+      const customError = `Error: ${error}`;
+      return res.status(400).json({ message: customError });
+    }
   }
 }
